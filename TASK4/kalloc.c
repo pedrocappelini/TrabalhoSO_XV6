@@ -1,4 +1,3 @@
-// kalloc.c - Gerenciador de memória com Reference Counting (Task 4)
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -6,7 +5,6 @@
 #include "mmu.h"
 #include "spinlock.h"
 
-// Correção para PGSHIFT caso não esteja definido
 #ifndef PGSHIFT
 #define PGSHIFT 12
 #endif
@@ -22,7 +20,6 @@ struct {
   struct spinlock lock;
   int use_lock;
   struct run *freelist;
-  // TASK 4: Array de contagem
   uchar ref_count[PHYSTOP >> PGSHIFT];
 } kmem;
 
@@ -30,7 +27,7 @@ void
 kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
-  kmem.use_lock = 0; // Travas desligadas no início
+  kmem.use_lock = 0;
   freerange(vstart, vend);
 }
 
@@ -38,7 +35,7 @@ void
 kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
-  kmem.use_lock = 1; // Travas ligadas agora
+  kmem.use_lock = 1;
 }
 
 void
@@ -52,7 +49,6 @@ freerange(void *vstart, void *vend)
   }
 }
 
-// --- TASK 4: Funções Auxiliares (CORRIGIDAS) ---
 
 void
 inc_ref(uint pa)
@@ -60,7 +56,6 @@ inc_ref(uint pa)
   if(pa >= PHYSTOP || pa < V2P(end))
     panic("inc_ref");
 
-  // Só usa lock se estiver habilitado (evita travamento no boot)
   if(kmem.use_lock)
     acquire(&kmem.lock);
 
@@ -118,12 +113,9 @@ kfree(char *v)
 
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
-
-  // Decrementa e vê se ainda tem gente usando
   if(dec_ref(V2P(v)) > 0)
     return;
 
-  // Ninguém usa, pode liberar
   memset(v, 1, PGSIZE);
 
   if(kmem.use_lock)
@@ -145,7 +137,6 @@ kalloc(void)
   r = kmem.freelist;
   if(r) {
     kmem.freelist = r->next;
-    // Página nova nasce com contador 1
     kmem.ref_count[V2P((char*)r) >> PGSHIFT] = 1;
   }
   if(kmem.use_lock)

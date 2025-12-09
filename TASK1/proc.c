@@ -523,7 +523,6 @@ procdump(void)
     else
       state = "???";
 
-    // Imprime informações básicas (Original do XV6)
     cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
@@ -532,31 +531,24 @@ procdump(void)
     }
     cprintf("\n");
 
-    // --- TASK 1: Visualização da Memória ---
-
-    // Se o processo não tem diretório de páginas (ex: EMBRYO), pula
     if(p->state == EMBRYO || p->pgdir == 0)
       continue;
 
-    // PARTE A: Estrutura das Tabelas (Hierarquia)
     cprintf("Page tables:\n");
     cprintf("  memory location of page directory = %x\n", V2P(p->pgdir));
 
     pde_t *pgdir = p->pgdir;
 
-    // Loop 1: Varre o Diretório de Páginas (1024 entradas)
     for(i = 0; i < NPDENTRIES; i++){
       pde_t pde = pgdir[i];
 
-      // Verifica se a entrada existe (PTE_P) e é de usuário (PTE_U)
       if((pde & PTE_P) && (pde & PTE_U)){
-        uint pa_ptab = PTE_ADDR(pde); // Endereço físico da tabela
+        uint pa_ptab = PTE_ADDR(pde);
         cprintf("  pdir PTE %d, PPN %x:\n", i, pa_ptab >> 12);
         cprintf("    memory location of page table = %x\n", pa_ptab);
 
         pte_t *pgtab = (pte_t*)P2V(pa_ptab);
 
-        // Loop 2: Varre a Tabela de Páginas (1024 entradas)
         int j;
         for(j = 0; j < NPTENTRIES; j++){
           pte_t pte = pgtab[j];
@@ -568,7 +560,6 @@ procdump(void)
       }
     }
 
-    // PARTE B: Mapeamentos (Virtual -> Físico)
     cprintf("Page mappings:\n");
 
     for(i = 0; i < NPDENTRIES; i++){
@@ -582,7 +573,6 @@ procdump(void)
           pte_t pte = pgtab[j];
           if((pte & PTE_P) && (pte & PTE_U)){
             uint pa_page = PTE_ADDR(pte);
-            // Calcula o Endereço Virtual: (Indice Dir << 22) | (Indice Tab << 12)
             uint va = (i << 22) | (j << 12);
             cprintf("%d -> %d\n", va >> 12, pa_page >> 12);
           }

@@ -55,7 +55,7 @@ exec(char *path, char **argv)
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
 
-    // --- CORRECAO CRITICA PARA O PANIC ---
+    // Para o Panic
     if(ph.vaddr < PGSIZE)
         continue;
 
@@ -67,7 +67,7 @@ exec(char *path, char **argv)
     if(loaduvm(pgdir, (char*)ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
 
-    // --- TASK 3: Lógica de Proteção ---
+    // Protecao
     if((ph.flags & ELF_PROG_FLAG_WRITE) == 0){
       uint va;
       for(va = PGROUNDDOWN(ph.vaddr); va < ph.vaddr + ph.memsz; va += PGSIZE){
