@@ -4,6 +4,20 @@ Este repositório contém implementações avançadas de gerenciamento de memór
 
 ---
 
+## Membros do Grupo
+
+| Nome | RA |
+| :--- | :--- |
+| **Pedro Cappelini Miguel** | 832795 |
+| **Caio Miyaji Ishii** | 832934 |
+| **Felipe Betcher Penteado** | 831439 |
+| **João Victor Dumont Mauad** | 834725 |
+| **Heitor Giometti** | 834220 |
+| **Washington Wilson Caetano** | 632554 |
+| **Juliano Vitorino da Silva** | 757918 |
+
+---
+
 ## Configuração do Ambiente (Como Compilar)
 
 O xv6 requer um emulador (QEMU) e um compilador cruzado para arquitetura x86. Siga as instruções abaixo de acordo com seu Sistema Operacional.
