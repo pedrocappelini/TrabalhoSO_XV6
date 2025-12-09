@@ -7,6 +7,12 @@
 #include "x86.h"
 #include "elf.h"
 
+#define ELF_PROG_FLAG_EXEC  1
+#define ELF_PROG_FLAG_WRITE 2
+#define ELF_PROG_FLAG_READ  4
+
+pte_t *walkpgdir(pde_t *pgdir, const void *va, int alloc);
+
 int
 exec(char *path, char **argv)
 {
@@ -29,7 +35,6 @@ exec(char *path, char **argv)
   ilock(ip);
   pgdir = 0;
 
-  // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
   if(elf.magic != ELF_MAGIC)
@@ -38,8 +43,8 @@ exec(char *path, char **argv)
   if((pgdir = setupkvm()) == 0)
     goto bad;
 
-  // Load program into memory.
-  sz = 0;
+  sz = PGSIZE; // Começa em 4096
+
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
@@ -49,26 +54,41 @@ exec(char *path, char **argv)
       goto bad;
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
+
+    // --- CORRECAO CRITICA PARA O PANIC ---
+    if(ph.vaddr < PGSIZE)
+        continue;
+
     if((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
+
     if(loaduvm(pgdir, (char*)ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
+
+    // --- TASK 3: Lógica de Proteção ---
+    if((ph.flags & ELF_PROG_FLAG_WRITE) == 0){
+      uint va;
+      for(va = PGROUNDDOWN(ph.vaddr); va < ph.vaddr + ph.memsz; va += PGSIZE){
+        pte_t *pte = walkpgdir(pgdir, (void*)va, 0);
+        if(pte && (*pte & PTE_P)){
+          *pte &= ~PTE_W;
+        }
+      }
+    }
   }
+
   iunlockput(ip);
   end_op();
   ip = 0;
 
-  // Allocate two pages at the next page boundary.
-  // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   sp = sz;
 
-  // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;
@@ -79,25 +99,23 @@ exec(char *path, char **argv)
   }
   ustack[3+argc] = 0;
 
-  ustack[0] = 0xffffffff;  // fake return PC
+  ustack[0] = 0xffffffff;
   ustack[1] = argc;
-  ustack[2] = sp - (argc+1)*4;  // argv pointer
+  ustack[2] = sp - (argc+1)*4;
 
   sp -= (3+argc+1) * 4;
   if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;
 
-  // Save program name for debugging.
   for(last=s=path; *s; s++)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-  // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
-  curproc->tf->eip = elf.entry;  // main
+  curproc->tf->eip = elf.entry;
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
