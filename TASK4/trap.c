@@ -78,6 +78,70 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
 
+  case T_PGFLT: // Page Fault (Erro 14)
+    {
+      // Pega o endereço que deu erro (está no registrador CR2)
+      uint va = rcr2();
+      struct proc *curproc = myproc();
+      pte_t *pte;
+      uint pa;
+      char *mem;
+
+      // Se o endereço for inválido ou o processo não existir -> mata
+      // CORREÇÃO 1: troquei cpu->id por cpuid()
+      if(curproc == 0 || va >= KERNBASE) {
+         cprintf("pid %d %s: trap %d err %d on cpu %d "
+            "eip 0x%x addr 0x%x--kill proc\n",
+            curproc->pid, curproc->name, tf->trapno, tf->err, cpuid(), tf->eip, rcr2());
+         curproc->killed = 1;
+         break;
+      }
+
+      // Vamos verificar se é um erro COW
+      // 1. Acha a entrada na tabela de páginas
+      // (Precisamos declarar walkpgdir no topo do trap.c ou usar extern)
+      extern pte_t* walkpgdir(pde_t *pgdir, const void *va, int alloc);
+
+      // Arredonda para baixo para pegar o inicio da página
+      va = PGROUNDDOWN(va);
+      pte = walkpgdir(curproc->pgdir, (void*)va, 0);
+
+      // 2. Se a página existe E tem a flag COW marcada
+      if(pte && (*pte & PTE_P) && (*pte & PTE_COW)) {
+
+         pa = PTE_ADDR(*pte); // Endereço físico antigo (compartilhado)
+
+         // Aloca uma página NOVA só para nós
+         if((mem = kalloc()) == 0) {
+            cprintf("COW: Out of memory\n");
+            curproc->killed = 1;
+            break;
+         }
+
+         // Copia o conteúdo da página velha (pa) para a nova (mem)
+         memmove(mem, (char*)P2V(pa), PGSIZE);
+
+         // Decrementa o contador da página velha (já que não usamos mais ela)
+         dec_ref(pa);
+
+         // Atualiza a tabela: Aponta para a NOVA página
+         // Remove COW, Adiciona Write (PTE_W)
+         uint flags = PTE_FLAGS(*pte);
+         flags &= ~PTE_COW; // Tira COW
+         flags |= PTE_W;    // Põe Write
+
+         // CORREÇÃO 2: Removi PA2PTE(), basta usar o endereço OR flags
+         *pte = V2P(mem) | flags;
+
+         // Atualiza a TLB (cache de endereços) para o processador perceber a mudança
+         lcr3(V2P(curproc->pgdir));
+
+         break; // Sucesso! O programa vai tentar escrever de novo e agora vai conseguir.
+      }
+
+      // Se não for COW, é um erro normal (ex: acesso inválido). Deixa cair no default.
+    }
+
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){

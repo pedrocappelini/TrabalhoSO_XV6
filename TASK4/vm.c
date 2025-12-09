@@ -32,7 +32,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -318,25 +318,53 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
+  // char *mem; // Removido pois não é usado aqui
 
   if((d = setupkvm()) == 0)
     return 0;
+
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
+
+    // Endereço Físico original
     pa = PTE_ADDR(*pte);
+
+    // Pega as flags atuais
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      kfree(mem);
+
+    // --- LÓGICA COPY-ON-WRITE (TASK 4) ---
+
+    // Se a página é "Writable" (Escrita), transformamos em Read-Only + COW
+    if(flags & PTE_W) {
+      // Remove permissão de escrita
+      flags &= ~PTE_W;
+      // Adiciona flag COW
+      flags |= PTE_COW;
+
+      // Atualiza a tabela do PAI também! (O pai também perde a escrita)
+      *pte = pa | flags;
+    }
+
+    // Mapeia no FILHO apontando para o MESMO endereço físico (pa)
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
       goto bad;
     }
+
+    // Aumenta o contador de referências dessa página física
+    inc_ref(pa);
+
+    // -------------------------------------
   }
+
+  // --- CORREÇÃO CRÍTICA (FLUSH TLB) ---
+  // Avisa o processador que as permissões mudaram (agora são Read-Only).
+  // Sem isso, o sistema trava no boot.
+  lcr3(V2P(pgdir));
+  // ------------------------------------
+
   return d;
 
 bad:
@@ -391,4 +419,3 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 // Blank page.
 //PAGEBREAK!
 // Blank page.
-
