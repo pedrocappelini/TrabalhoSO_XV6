@@ -8,7 +8,7 @@ Este repositório contém implementações avançadas de gerenciamento de memór
 
 O xv6 requer um emulador (QEMU) e um compilador cruzado para arquitetura x86. Siga as instruções abaixo de acordo com seu Sistema Operacional.
 
-### 🐧 Linux (Nativo)
+###  Linux (Nativo)
 Esta é a plataforma recomendada. Abra o terminal e instale as dependências:
 
 ```bash
@@ -16,7 +16,7 @@ sudo apt-get update
 sudo apt-get install git build-essential qemu-system-x86 gdb
 ```
 
-### 🪟 Windows (via WSL 2)
+###  Windows (via WSL 2)
 A forma mais eficiente de rodar no Windows é utilizando o WSL 2 (Windows Subsystem for Linux) com Ubuntu.
 
 1. Abra o **PowerShell como Administrador** e instale o WSL:
@@ -31,7 +31,7 @@ A forma mais eficiente de rodar no Windows é utilizando o WSL 2 (Windows Subsys
    sudo apt-get install git build-essential qemu-system-x86 gdb
    ```
 
-### 🍎 macOS
+###  macOS
 No macOS, é necessário instalar as ferramentas via Homebrew. Note que processadores Apple Silicon (M1/M2/M3) precisam de compiladores específicos (`i386-elf-gcc`).
 
 1. Instale as dependências:
@@ -59,9 +59,6 @@ make clean
 ```bash
 make qemu
 ```
-> **Dica:** Se estiver usando WSL ou um terminal sem interface gráfica, use `make qemu-nox` para rodar sem abrir janelas extras.
-
----
 
 ## ✅ Validação das Tarefas
 
@@ -118,12 +115,3 @@ Cada pasta implementa uma funcionalidade específica. Abaixo estão os comandos 
 
 ---
 
-## ❓ Solução de Problemas Comuns
-
-* **`make: command not found`**: Você não instalou o `build-essential`.
-* **`qemu-system-i386: command not found`**: O QEMU não está instalado ou não está no PATH.
-* **Erro de loop infinito no `make qemu`**: Tente rodar `make clean` antes.
-
-**Para sair do QEMU:**
-* Se usou `make qemu` (janela): Feche a janela.
-* Se usou `make qemu-nox` (terminal): Pressione `CTRL+A`, solte, e depois aperte `X`.
